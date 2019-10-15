@@ -105,19 +105,19 @@ modprobe i2c_dev
 if [ "$BUS" = "NOT_SET" ]; then
 	if [ -e "/dev/i2c-0" ]; then
 		BUS=0
-	elif [ -e "/dev/i2c-3" ]; then
-		BUS=3
+	elif [ -e "/dev/i2c-10" ]; then
+		BUS=10
 	else
-		dtoverlay i2c-gpio i2c_gpio_sda=0 i2c_gpio_scl=1
+		dtoverlay i2c-gpio i2c_gpio_sda=0 i2c_gpio_scl=1 bus=10
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "Loading of i2c-gpio dtoverlay failed. Do an rpi-update (and maybe apt-get update; apt-get upgrade)."
 			exit $rc
 		fi
-		if [ -e "/dev/i2c-3" ]; then
-			BUS=3
+		if [ -e "/dev/i2c-10" ]; then
+			BUS=10
 		else
-			echo "Expected I2C bus (i2c-3) not found."
+			echo "Expected I2C bus (i2c-10) not found."
 		fi
 	fi
 fi
@@ -140,17 +140,28 @@ if [ ! -d "$SYS/$BUS-00$ADDR" ]; then
 	echo "$TYPE 0x$ADDR" > $SYS/new_device
 fi
 
+DD_VERSION=$(dd --version | grep coreutils | sed -e 's/\.//' | cut -d' ' -f 3)
+if [ $DD_VERSION -ge 824 ]
+ then
+	DD_STATUS="progress"
+ else
+	DD_STATUS="none"
+fi
+
 if [ "$MODE" = "write" ]
  then
 	echo "Writing..."
-	dd if=$FILE of=$SYS/$BUS-00$ADDR/eeprom status=progress
+	dd if=$FILE of=$SYS/$BUS-00$ADDR/eeprom status=$DD_STATUS
 	rc=$?
 elif [ "$MODE" = "read" ]
  then
 	echo "Reading..."
-	dd if=$SYS/$BUS-00$ADDR/eeprom of=$FILE status=progress
+	dd if=$SYS/$BUS-00$ADDR/eeprom of=$FILE status=$DD_STATUS
 	rc=$?
 fi
+
+echo "Closing EEPROM Device."
+echo "0x$ADDR" > $SYS/delete_device
 
 if [ $rc != 0 ]; then
 	echo "Error doing I/O operation."
@@ -158,6 +169,3 @@ if [ $rc != 0 ]; then
 else
 	echo "Done."
 fi
-
-echo "Closing EEPROM Device."
-echo "0x$ADDR" > $SYS/delete_device
